@@ -1,0 +1,1 @@
+# Netlify Build Fix\n\nUpdate package.json to use just 'next build' for build:static, and remove export script since static export is now handled by output:'export' in next.config.js
