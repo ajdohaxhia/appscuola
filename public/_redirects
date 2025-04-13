@@ -1,0 +1,2 @@
+# Netlify redirects file - Letting the Netlify Next.js plugin handle routing
+/* /index.html 200
