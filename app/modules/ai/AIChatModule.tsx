@@ -4,11 +4,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Copy, Send, Settings, X, AlertCircle, Loader2, ChevronDown, Paperclip, Mic, Image as ImageIcon, StopCircle, FileText } from 'lucide-react';
 import { OpenAIService, MessageContent, OpenAIMessage } from '@/app/lib/openai';
 import Image from 'next/image';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Button } from '../../components/ui/button';
+import { Textarea } from '../../../src/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../src/components/ui/select';
+import { Card } from '../../../src/components/ui/card';
+import { ScrollArea } from '../../../src/components/ui/scroll-area';
 import { toast } from 'sonner';
 
 interface Message {
