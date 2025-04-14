@@ -1,9 +1,15 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Copy, Send, Settings, X, AlertCircle, Loader2, ChevronDown, Paperclip, Mic, Image as ImageIcon, StopCircle } from 'lucide-react';
-import { OpenAIService, MessageContent } from '@/app/lib/openai';
+import { Copy, Send, Settings, X, AlertCircle, Loader2, ChevronDown, Paperclip, Mic, Image as ImageIcon, StopCircle, FileText } from 'lucide-react';
+import { OpenAIService, MessageContent, OpenAIMessage } from '@/app/lib/openai';
 import Image from 'next/image';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { toast } from 'sonner';
 
 interface Message {
   role: 'user' | 'assistant' | 'system';
@@ -30,13 +36,17 @@ export function AIChatModule() {
   const recordingTimerRef = useRef<number | null>(null);
   
   // State for model selection
-  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [availableModels, setAvailableModels] = useState<{
+    chat: string[];
+    image: string[];
+    document: string[];
+  }>({ chat: [], image: [], document: [] });
   const [selectedModel, setSelectedModel] = useState<string>('gpt-3.5-turbo'); // Default model
   const [modelsLoading, setModelsLoading] = useState<boolean>(true);
   const [modelsError, setModelsError] = useState<string | null>(null);
 
   // Initialize OpenAI service
-  const openAIService = useRef(new OpenAIService());
+  const openAIService = new OpenAIService();
 
   // Fetch available models on mount
   useEffect(() => {
@@ -44,14 +54,14 @@ export function AIChatModule() {
       setModelsLoading(true);
       setModelsError(null);
       try {
-        const models = await openAIService.current.getAvailableChatModels();
-        if (models && models.length > 0) {
+        const models = await openAIService.getAvailableModels();
+        if (models) {
           setAvailableModels(models);
           // Set default model (e.g., gpt-4o if available, else gpt-3.5-turbo, else first model)
           const preferredModels = ['gpt-4o', 'gpt-4-turbo', 'gpt-3.5-turbo'];
-          let defaultModel = models[0]; // Fallback to the first model
+          let defaultModel = models.chat[0]; // Fallback to the first model
           for (const prefModel of preferredModels) {
-            if (models.includes(prefModel)) {
+            if (models.chat.includes(prefModel)) {
               defaultModel = prefModel;
               break;
             }
@@ -59,13 +69,13 @@ export function AIChatModule() {
           setSelectedModel(defaultModel);
         } else {
           setModelsError('Nessun modello AI trovato.');
-          setAvailableModels([]);
+          setAvailableModels({ chat: [], image: [], document: [] });
           setSelectedModel(''); // No models, clear selection
         }
       } catch (err) {
         console.error('Failed to fetch models:', err);
         setModelsError(err instanceof Error ? err.message : 'Impossibile caricare i modelli AI.');
-        setAvailableModels([]);
+        setAvailableModels({ chat: [], image: [], document: [] });
         setSelectedModel('');
       } finally {
         setModelsLoading(false);
@@ -73,7 +83,7 @@ export function AIChatModule() {
     };
 
     fetchModels();
-  }, []); // Empty dependency array ensures this runs only once on mount
+  }, []);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -116,20 +126,22 @@ export function AIChatModule() {
     setIsLoading(true);
     
     try {
-      const newMessages = [...messages, userMessage];
-      // Convert our messages format to OpenAI format
-      const openAIMessages = newMessages.map(msg => ({
-        role: msg.role,
-        content: msg.content
-      }));
+      const openAIMessages: OpenAIMessage[] = [
+        ...messages.map(msg => ({
+          role: msg.role,
+          content: msg.content
+        })),
+        {
+          role: 'user',
+          content: input,
+        },
+      ];
       
-      const reply = await openAIService.current.sendChatMessage(openAIMessages, {
+      const reply = await openAIService.sendChatMessage(openAIMessages, {
         model: selectedModel,
+        files: selectedFiles,
         saveHistory: true,
-        historyTitle: typeof newMessages[0].content === 'string' 
-          ? newMessages[0].content.slice(0, 50) 
-          : 'Conversazione con file',
-        files: userMessage.files // Pass attached files
+        historyTitle: typeof input === 'string' ? input.slice(0, 50) : 'Conversazione con file',
       });
       
       setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
@@ -260,246 +272,111 @@ export function AIChatModule() {
   };
   
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-gray-900 rounded-lg shadow-md overflow-hidden">
-      {/* Header with Model Selector */}
-      <div className="flex justify-between items-center p-3 border-b border-gray-200 dark:border-gray-700">
-        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">AI Assistant</h2>
-        <div className="relative">
-          <select 
+    <Card className="w-full max-w-4xl mx-auto p-4">
+      <div className="flex flex-col h-[600px]">
+        <div className="flex items-center gap-2 mb-4">
+          <Select
             value={selectedModel}
-            onChange={(e) => setSelectedModel(e.target.value)}
-            disabled={modelsLoading || modelsError !== null || availableModels.length === 0}
-            className="pl-3 pr-8 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-            aria-label="Seleziona modello AI"
+            onValueChange={setSelectedModel}
           >
-            {modelsLoading ? (
-              <option value="" disabled>Caricamento modelli...</option>
-            ) : modelsError ? (
-              <option value="" disabled>Errore caricamento</option>
-            ) : availableModels.length === 0 ? (
-              <option value="" disabled>Nessun modello</option>
-            ) : (
-              availableModels.map(modelId => (
-                <option key={modelId} value={modelId}>
-                  {modelId}
-                </option>
-              ))
-            )}
-          </select>
-          <ChevronDown 
-            className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"
-          />
-          {modelsLoading && (
-            <Loader2 className="absolute right-8 top-1/2 transform -translate-y-1/2 h-4 w-4 animate-spin text-gray-400" />
-          )}
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Select model" />
+            </SelectTrigger>
+            <SelectContent>
+              {availableModels.chat.map(model => (
+                <SelectItem key={model} value={model}>
+                  {model}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-      </div>
-      {modelsError && (
-          <div className="p-2 bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300 text-xs flex items-center">
-            <AlertCircle className="h-4 w-4 mr-1.5 flex-shrink-0" />
-            {modelsError}
-          </div>
-      )}
-      
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-gray-800">
-        {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
-            <p className="text-center max-w-md">
-              Benvenuto! Seleziona un modello AI e poni una domanda. Puoi anche allegare immagini o registrare messaggi vocali.
-            </p>
-          </div>
-        ) : (
-          <>
-            {messages.map((message, index) => {
-              // Define conditional classes
-              const outerDivClass = 'mb-4' + (message.role === 'user' ? ' ml-auto' : '');
-              const innerDivClass = 'max-w-[80%] p-3 rounded-lg ' + 
-                (message.role === 'user'
-                  ? 'bg-blue-600 text-white ml-auto'
-                  : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200');
 
-              return (
+        <ScrollArea className="flex-1 mb-4">
+          <div className="space-y-4">
+            {messages.map((message, index) => (
+              <div
+                key={index}
+                className={`flex ${
+                  message.role === 'user' ? 'justify-end' : 'justify-start'
+                }`}
+              >
                 <div
-                  key={index}
-                  className={outerDivClass}
+                  className={`max-w-[80%] p-3 rounded-lg ${
+                    message.role === 'user'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted'
+                  }`}
                 >
-                  <div
-                    className={innerDivClass}
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="w-full">
-                        {renderMessageContent(message.content)}
-                      </div>
-                      {message.role === 'assistant' && (
-                        <button
-                          onClick={() => copyToClipboard(typeof message.content === 'string' ? message.content : 'Impossibile copiare contenuto con allegati')}
-                          className="ml-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 flex-shrink-0"
-                          title="Copia"
-                        >
-                          <Copy size={16} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                  {renderMessageContent(message.content)}
                 </div>
-              );
-            })}
-            <div ref={messagesEndRef} />
-          </>
-        )}
-        
-        {isLoading && (
-          <div className="flex justify-center items-center py-4">
-            <Loader2 className="h-5 w-5 animate-spin text-gray-500 dark:text-gray-400" />
-            <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">L'assistente sta pensando...</span>
-          </div>
-        )}
-        
-        {error && !modelsError && (
-          <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-800 dark:text-red-300 flex items-start">
-            <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0" />
-            <p className="text-sm">{error}</p>
-          </div>
-        )}
-        
-        {isCopied && (
-          <div className="fixed bottom-20 right-4 bg-gray-900 text-white px-4 py-2 rounded-md shadow-lg text-sm">
-            Copiato negli appunti!
-          </div>
-        )}
-      </div>
-      
-      {/* Selected files preview */}
-      {selectedFiles.length > 0 && (
-        <div className="p-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-          <div className="flex flex-wrap gap-2">
-            {selectedFiles.map((file, index) => (
-              <div key={index} className="relative rounded-md border border-gray-300 dark:border-gray-600 p-1">
-                {file.type.startsWith('image/') ? (
-                  <div className="relative h-12 w-12">
-                    <Image 
-                      src={URL.createObjectURL(file)} 
-                      alt={file.name}
-                      fill
-                      className="object-cover rounded"
-                    />
-                  </div>
-                ) : file.type.startsWith('audio/') ? (
-                  <div className="h-12 w-12 flex items-center justify-center bg-gray-200 dark:bg-gray-700 rounded">
-                    <Mic className="h-6 w-6 text-gray-600 dark:text-gray-300" />
-                  </div>
-                ) : (
-                  <div className="h-12 w-12 flex items-center justify-center bg-gray-200 dark:bg-gray-700 rounded">
-                    <Paperclip className="h-6 w-6 text-gray-600 dark:text-gray-300" />
-                  </div>
-                )}
-                <button 
-                  onClick={() => removeFile(index)}
-                  className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5"
-                  title="Rimuovi file"
-                >
-                  <X size={12} />
-                </button>
               </div>
             ))}
+            <div ref={messagesEndRef} />
           </div>
-        </div>
-      )}
-      
-      {/* Voice recording indicator */}
-      {isRecording && (
-        <div className="p-2 border-t border-gray-200 dark:border-gray-700 bg-red-50 dark:bg-red-900/20">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse mr-2"></div>
-              <span className="text-red-700 dark:text-red-300 text-sm">
-                Registrazione in corso... {formatRecordingTime(recordingTime)}
-              </span>
+        </ScrollArea>
+
+        <div className="space-y-2">
+          {selectedFiles.length > 0 && (
+            <div className="flex flex-wrap gap-2 p-2 bg-muted rounded-md">
+              {selectedFiles.map((file, index) => (
+                <div
+                  key={index}
+                  className="flex items-center gap-2 bg-background p-2 rounded-md"
+                >
+                  {file.type.startsWith('image/') ? (
+                    <ImageIcon className="w-4 h-4" />
+                  ) : (
+                    <FileText className="w-4 h-4" />
+                  )}
+                  <span className="text-sm">{file.name}</span>
+                  <button
+                    onClick={() => removeFile(index)}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
             </div>
-            <button
-              onClick={stopRecording}
-              className="p-1.5 bg-red-500 hover:bg-red-600 text-white rounded-full"
-              title="Interrompi registrazione"
+          )}
+
+          <div className="flex gap-2">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileSelect}
+              className="hidden"
+              multiple
+              accept="image/*,.pdf,.txt,.doc,.docx"
+            />
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => fileInputRef.current?.click()}
             >
-              <StopCircle size={18} />
-            </button>
-          </div>
-        </div>
-      )}
-      
-      {/* Hidden file input */}
-      <input 
-        type="file" 
-        ref={fileInputRef} 
-        onChange={handleFileSelect} 
-        className="hidden" 
-        accept="image/*,audio/*" 
-        multiple 
-      />
-      
-      {/* Input */}
-      <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-        <div className="flex flex-col">
-          <div className="flex mb-2">
-            <textarea
-              ref={textareaRef}
+              <Paperclip className="w-4 h-4" />
+            </Button>
+            <Textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
+              placeholder="Type your message..."
+              className="flex-1"
               onKeyDown={handleKeyDown}
-              className="flex-1 p-2 border border-gray-300 dark:border-gray-600 rounded-l-md resize-none overflow-hidden max-h-32 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-gray-100 dark:bg-gray-700"
-              placeholder="Scrivi un messaggio..."
-              rows={1}
-              disabled={modelsLoading || modelsError !== null || !selectedModel || isRecording}
             />
-            <div className="flex">
-              <button
-                onClick={handleSendMessage}
-                disabled={isLoading || modelsLoading || modelsError !== null || (!input.trim() && selectedFiles.length === 0) || !selectedModel || isRecording}
-                className={`p-2 ${
-                  isLoading || modelsLoading || modelsError !== null || (!input.trim() && selectedFiles.length === 0) || !selectedModel || isRecording
-                    ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                    : 'bg-blue-600 hover:bg-blue-700 text-white'
-                } rounded-r-md`}
-                title={!selectedModel ? "Seleziona prima un modello AI" : "Invia messaggio"}
-              >
-                <Send size={20} />
-              </button>
-            </div>
-          </div>
-          
-          {/* Attachment buttons */}
-          <div className="flex gap-2">
-            {/* Image attachment button */}
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isLoading || isRecording}
-              className={`p-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-gray-600 dark:text-gray-300 ${
-                isLoading || isRecording ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
-              title="Allega immagine"
+            <Button
+              onClick={handleSendMessage}
+              disabled={isLoading || (!input.trim() && selectedFiles.length === 0)}
             >
-              <ImageIcon size={18} />
-            </button>
-            
-            {/* Voice recording button */}
-            <button
-              onClick={isRecording ? stopRecording : startRecording}
-              disabled={isLoading}
-              className={`p-1.5 border rounded-md ${
-                isRecording 
-                  ? 'border-red-500 bg-red-100 dark:bg-red-900/20 text-red-500' 
-                  : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300'
-              } ${
-                isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
-              title={isRecording ? "Interrompi registrazione" : "Registra messaggio vocale"}
-            >
-              {isRecording ? <StopCircle size={18} /> : <Mic size={18} />}
-            </button>
+              {isLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                'Send'
+              )}
+            </Button>
           </div>
         </div>
       </div>
-    </div>
+    </Card>
   );
 } 

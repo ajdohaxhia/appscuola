@@ -2,6 +2,7 @@
 
 import { dbService } from './db';
 import type { AISession } from './db';
+import { FileUploadService } from './fileUpload';
 
 // Define the interfaces that were previously imported but missing
 interface ChatHistory {
@@ -81,6 +82,8 @@ interface ImageResponse {
 // Classe per gestire le chiamate all'API di OpenAI
 export class OpenAIService {
   private imageModel = 'dall-e-3';
+  private defaultModel = 'gpt-3.5-turbo';
+  private fileUploadService = new FileUploadService();
 
   constructor() {
     // No need to store API key in the client
@@ -94,9 +97,13 @@ export class OpenAIService {
   }
 
   /**
-   * Fetch available chat models from our backend API
+   * Get available models with their capabilities
    */
-  async getAvailableChatModels(): Promise<string[]> {
+  async getAvailableModels(): Promise<{
+    chat: string[];
+    image: string[];
+    document: string[];
+  }> {
     try {
       const response = await fetch('/api/openai/models');
       if (!response.ok) {
@@ -104,7 +111,12 @@ export class OpenAIService {
         throw new Error(errorData?.error || `Failed to fetch models: ${response.statusText}`);
       }
       const data = await response.json();
-      return data.models || [];
+      
+      return {
+        chat: data.models?.filter((model: string) => model.startsWith('gpt')) || [],
+        image: ['dall-e-2', 'dall-e-3'],
+        document: ['gpt-3.5-turbo', 'gpt-4']
+      };
     } catch (error) {
       console.error('Error fetching available models:', error);
       throw error;
@@ -112,7 +124,40 @@ export class OpenAIService {
   }
 
   /**
-   * Send a chat message to OpenAI API via our server-side route
+   * Process files and prepare them for the API
+   */
+  private async processFiles(files: File[]): Promise<MessageContent[]> {
+    const contentArray: MessageContent[] = [];
+    
+    for (const file of files) {
+      try {
+        const uploadResult = await this.fileUploadService.uploadFile(file);
+        const category = this.fileUploadService.getFileCategory(file.type);
+        
+        if (category === 'image') {
+          contentArray.push({
+            type: 'image',
+            image_url: uploadResult.url
+          });
+        } else if (category === 'document') {
+          // For documents, we'll need to extract text content
+          // This is a placeholder - you'll need to implement document text extraction
+          contentArray.push({
+            type: 'text',
+            text: `[Document: ${file.name}]`
+          });
+        }
+      } catch (error) {
+        console.error(`Error processing file ${file.name}:`, error);
+        // Continue with other files even if one fails
+      }
+    }
+    
+    return contentArray;
+  }
+
+  /**
+   * Send a chat message with file attachments
    */
   async sendChatMessage(
     messages: OpenAIMessage[],
@@ -143,25 +188,8 @@ export class OpenAIService {
           }
           
           // Process files
-          for (const file of options.files) {
-            if (file.type.startsWith('image/')) {
-              const imageUrl = await this.uploadAndGetImageUrl(file);
-              if (imageUrl) {
-                contentArray.push({
-                  type: 'image',
-                  image_url: imageUrl
-                });
-              }
-            } else if (file.type.startsWith('audio/')) {
-              const audioUrl = await this.uploadAndGetAudioUrl(file);
-              if (audioUrl) {
-                contentArray.push({
-                  type: 'audio',
-                  audio_url: audioUrl
-                });
-              }
-            }
-          }
+          const fileContents = await this.processFiles(options.files);
+          contentArray.push(...fileContents);
           
           // Replace last message with processed content
           processedMessages = [
@@ -176,7 +204,7 @@ export class OpenAIService {
 
       // Prepare request body
       const requestBody = {
-        model: options.model || 'gpt-3.5-turbo',
+        model: options.model || this.defaultModel,
         messages: processedMessages,
         temperature: options.temperature || 0.7,
         max_tokens: options.maxTokens || 500,
