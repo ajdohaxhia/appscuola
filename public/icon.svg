@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="256" fill="#4F46E5"/>
+  
+  <!-- Book icon -->
+  <path d="M128 128H384V384H128V128Z" fill="white"/>
+  <path d="M160 160H352V352H160V160Z" fill="#4F46E5"/>
+  
+  <!-- AI symbol -->
+  <path d="M256 192L288 288L224 288L256 192Z" fill="white"/>
+  <circle cx="256" cy="320" r="16" fill="white"/>
+</svg> 

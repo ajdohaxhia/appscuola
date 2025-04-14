@@ -141,11 +141,13 @@ const nextConfig = {
 
     // Add support for workbox-webpack-plugin
     if (!isServer) {
+      const { GenerateSW } = require('workbox-webpack-plugin');
       config.plugins.push(
-        new (require('workbox-webpack-plugin').GenerateSW)({
+        new GenerateSW({
           swDest: 'sw.js',
           clientsClaim: true,
           skipWaiting: true,
+          runtimeCaching: runtimeCaching,
         })
       );
     }

@@ -1,15 +1,52 @@
 {
-  "name": "AppScuola - Studio Innovativo",
+  "name": "AppScuola",
   "short_name": "AppScuola",
-  "description": "L'app PWA definitiva per studenti: organizzati e studia in modo innovativo con appunti, mappe mentali, flashcards, calendario e assistente AI.",
+  "description": "La rivoluzionaria PWA per studenti con funzionalità avanzate di apprendimento",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f3f4f6",
-  "theme_color": "#3b82f6",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#4F46E5",
   "icons": [
+    {
+      "src": "/icons/icon-72x72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-96x96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-128x128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-144x144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-152x152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
     {
       "src": "/icons/icon-192x192.png",
       "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-384x384.png",
+      "sizes": "384x384",
       "type": "image/png",
       "purpose": "any maskable"
     },
@@ -23,40 +60,56 @@
   "shortcuts": [
     {
       "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "Vai alla dashboard principale",
       "url": "/dashboard",
-      "description": "Torna alla dashboard"
+      "icons": [{ "src": "/icons/dashboard-96x96.png", "sizes": "96x96" }]
     },
     {
-      "name": "Appunti",
-      "url": "/dashboard/notes",
-      "description": "Gestisci i tuoi appunti"
+      "name": "AI Chat",
+      "short_name": "AI Chat",
+      "description": "Inizia una nuova chat con l'AI",
+      "url": "/dashboard/ai-chat",
+      "icons": [{ "src": "/icons/ai-96x96.png", "sizes": "96x96" }]
     },
     {
-      "name": "Mappe Mentali",
-      "url": "/dashboard/mindmaps",
-      "description": "Visualizza le tue mappe mentali"
-    },
-    {
-      "name": "AI Assistant",
-      "url": "/dashboard/ai",
-      "description": "Chiedi aiuto all'assistente AI"
+      "name": "Flashcards",
+      "short_name": "Flashcards",
+      "description": "Crea o studia flashcards",
+      "url": "/dashboard/flashcards",
+      "icons": [{ "src": "/icons/flashcards-96x96.png", "sizes": "96x96" }]
     }
   ],
   "screenshots": [
     {
+      "src": "/screenshots/home.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "platform": "wide",
+      "label": "Home page di AppScuola"
+    },
+    {
       "src": "/screenshots/dashboard.png",
       "sizes": "1280x720",
-      "type": "image/png"
+      "type": "image/png",
+      "platform": "wide",
+      "label": "Dashboard principale"
     },
     {
-      "src": "/screenshots/notes.png",
+      "src": "/screenshots/ai-chat.png",
       "sizes": "1280x720",
-      "type": "image/png"
-    },
-    {
-      "src": "/screenshots/ai.png",
-      "sizes": "1280x720",
-      "type": "image/png"
+      "type": "image/png",
+      "platform": "wide",
+      "label": "Chat con l'AI"
     }
-  ]
+  ],
+  "categories": ["education", "productivity", "utilities"],
+  "prefer_related_applications": false,
+  "scope": "/",
+  "dir": "ltr",
+  "lang": "it-IT",
+  "display_override": ["standalone", "minimal-ui"],
+  "edge_side_panel": {
+    "preferred_width": 480
+  }
 } 

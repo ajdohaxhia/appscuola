@@ -1,35 +1,29 @@
-const CACHE_NAME = 'appscuola-v1';
-const STATIC_CACHE = 'static-v1';
-const DYNAMIC_CACHE = 'dynamic-v1';
+const CACHE_NAME = 'appscuola-cache-v1';
+const OFFLINE_PAGE = '/offline.html';
 
-// List of URLs to cache
-const STATIC_ASSETS = [
+// List of routes to exclude from caching
+const EXCLUDED_ROUTES = [
+  '/api/openai/chat',
+  '/api/openai/models',
+  '/api/openai/image'
+];
+
+// List of assets to cache
+const ASSETS_TO_CACHE = [
   '/',
-  '/index.html',
+  '/offline.html',
   '/manifest.json',
-  '/icons/icon-72x72.png',
-  '/icons/icon-96x96.png',
-  '/icons/icon-128x128.png',
-  '/icons/icon-144x144.png',
-  '/icons/icon-152x152.png',
-  '/icons/icon-192x192.png',
-  '/icons/icon-384x384.png',
-  '/icons/icon-512x512.png',
-  '/icons/dashboard-96x96.png',
-  '/icons/ai-96x96.png',
-  '/icons/flashcards-96x96.png',
-  '/screenshots/home.png',
-  '/screenshots/dashboard.png',
-  '/screenshots/ai-chat.png'
+  '/favicon.ico',
+  // Add other static assets here
 ];
 
 // Install event - cache static assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(STATIC_CACHE)
+    caches.open(CACHE_NAME)
       .then((cache) => {
         console.log('Opened cache');
-        return cache.addAll(STATIC_ASSETS);
+        return cache.addAll(ASSETS_TO_CACHE);
       })
   );
 });
@@ -39,56 +33,38 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== STATIC_CACHE && cacheName !== DYNAMIC_CACHE) {
-            return caches.delete(cacheName);
-          }
-        })
+        cacheNames
+          .filter((cacheName) => cacheName !== CACHE_NAME)
+          .map((cacheName) => caches.delete(cacheName))
       );
     })
   );
 });
 
-// Fetch event - handle network requests
+// Fetch event - handle requests
 self.addEventListener('fetch', (event) => {
   // Skip non-GET requests
-  if (event.request.method !== 'GET') return;
-
-  // Handle API requests
-  if (event.request.url.includes('/api/')) {
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          // Clone the response
-          const responseToCache = response.clone();
-          
-          // Cache the response
-          caches.open(DYNAMIC_CACHE)
-            .then((cache) => {
-              cache.put(event.request, responseToCache);
-            });
-          
-          return response;
-        })
-        .catch(() => {
-          // If offline, try to get from cache
-          return caches.match(event.request);
-        })
-    );
+  if (event.request.method !== 'GET') {
     return;
   }
 
-  // Handle static assets and pages
+  // Skip excluded routes
+  if (EXCLUDED_ROUTES.some(route => event.request.url.includes(route))) {
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
-        // Return cached response if found
+        // Cache hit - return response
         if (response) {
           return response;
         }
 
-        // Otherwise fetch from network
-        return fetch(event.request)
+        // Clone the request
+        const fetchRequest = event.request.clone();
+
+        return fetch(fetchRequest)
           .then((response) => {
             // Check if we received a valid response
             if (!response || response.status !== 200 || response.type !== 'basic') {
@@ -99,7 +75,7 @@ self.addEventListener('fetch', (event) => {
             const responseToCache = response.clone();
 
             // Cache the response
-            caches.open(DYNAMIC_CACHE)
+            caches.open(CACHE_NAME)
               .then((cache) => {
                 cache.put(event.request, responseToCache);
               });
@@ -107,10 +83,17 @@ self.addEventListener('fetch', (event) => {
             return response;
           })
           .catch(() => {
-            // If offline and not in cache, return offline page
+            // If fetch fails, return offline page for navigation requests
             if (event.request.mode === 'navigate') {
-              return caches.match('/');
+              return caches.match(OFFLINE_PAGE);
             }
+            return new Response('Offline', {
+              status: 503,
+              statusText: 'Service Unavailable',
+              headers: new Headers({
+                'Content-Type': 'text/plain'
+              })
+            });
           });
       })
   );
