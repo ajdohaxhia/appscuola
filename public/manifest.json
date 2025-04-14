@@ -1,11 +1,11 @@
 {
-  "name": "AppScuola",
+  "name": "AppScuola - Studio Innovativo",
   "short_name": "AppScuola",
-  "description": "L'app PWA definitiva per studenti dell'istituto tecnico.",
+  "description": "L'app PWA definitiva per studenti: organizzati e studia in modo innovativo con appunti, mappe mentali, flashcards, calendario e assistente AI.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0077cc",
-  "theme_color": "#005fa3",
+  "background_color": "#f3f4f6",
+  "theme_color": "#3b82f6",
   "icons": [
     {
       "src": "/icons/icon-192x192.png",
@@ -18,6 +18,45 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "url": "/dashboard",
+      "description": "Torna alla dashboard"
+    },
+    {
+      "name": "Appunti",
+      "url": "/dashboard/notes",
+      "description": "Gestisci i tuoi appunti"
+    },
+    {
+      "name": "Mappe Mentali",
+      "url": "/dashboard/mindmaps",
+      "description": "Visualizza le tue mappe mentali"
+    },
+    {
+      "name": "AI Assistant",
+      "url": "/dashboard/ai",
+      "description": "Chiedi aiuto all'assistente AI"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/dashboard.png",
+      "sizes": "1280x720",
+      "type": "image/png"
+    },
+    {
+      "src": "/screenshots/notes.png",
+      "sizes": "1280x720",
+      "type": "image/png"
+    },
+    {
+      "src": "/screenshots/ai.png",
+      "sizes": "1280x720",
+      "type": "image/png"
     }
   ]
 } 

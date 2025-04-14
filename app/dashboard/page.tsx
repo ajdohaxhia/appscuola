@@ -2,7 +2,7 @@
 
 import React, { useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { BookOpen, ClipboardList, CalendarDays, GraduationCap, Bot } from 'lucide-react';
+import { BookOpen, ClipboardList, CalendarDays, GraduationCap, Bot, Network } from 'lucide-react';
 
 // Placeholder data - replace with actual data fetching later
 const summaryData = {
@@ -10,6 +10,7 @@ const summaryData = {
   dueFlashcards: 15,
   notesCount: 28,
   calendarEventsToday: 2,
+  mindMapsCount: 5
 };
 
 // Module navigation map
@@ -64,6 +65,19 @@ function DashboardContent() {
           </div>
           <p className="text-3xl font-bold text-gray-800 dark:text-gray-100">{summaryData.dueFlashcards}</p>
           <p className="text-sm text-gray-500 dark:text-gray-400">Schede pronte per lo studio</p>
+        </div>
+
+        {/* Mind Maps Widget - link to mind maps page */}
+        <div 
+          onClick={() => router.push('/dashboard/mindmaps')}
+          className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 cursor-pointer"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-200">Mappe Mentali</h2>
+            <Network className="h-6 w-6 text-orange-500 dark:text-orange-400" />
+          </div>
+          <p className="text-3xl font-bold text-gray-800 dark:text-gray-100">{summaryData.mindMapsCount}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Mappe create</p>
         </div>
 
         {/* Notes Count Widget - link to notes page */}

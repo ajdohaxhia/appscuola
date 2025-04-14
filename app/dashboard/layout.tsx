@@ -14,7 +14,8 @@ import {
     X, 
     Sun, 
     Moon,
-    Bot
+    Bot,
+    Network
 } from 'lucide-react';
 import { useTheme } from 'next-themes'; // Assuming next-themes is used (from providers.tsx)
 
@@ -24,6 +25,7 @@ const sidebarNavItems = [
   { href: '/dashboard/tasks', label: 'Compiti', icon: ClipboardList },
   { href: '/dashboard/calendar', label: 'Calendario', icon: CalendarDays },
   { href: '/dashboard/flashcards', label: 'Flashcard', icon: GraduationCap },
+  { href: '/dashboard/mindmaps', label: 'Mappe Mentali', icon: Network },
   { href: '/dashboard/ai', label: 'Assistente AI', icon: Bot },
   { href: '/dashboard/settings', label: 'Impostazioni', icon: Settings },
 ];

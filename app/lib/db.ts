@@ -295,7 +295,26 @@ export class AppScuolaDB extends Dexie {
     return this.flashcards.delete(id);
   }
   
-  // ... add methods for other tables as needed ...
+  // Mind Maps Methods
+  async getMindMaps(): Promise<MindMap[]> {
+    return this.mindMaps.orderBy('updatedAt').reverse().toArray();
+  }
+  
+  async createMindMap(mindMap: Omit<MindMap, 'id'>): Promise<number> {
+    return this.mindMaps.add(mindMap as MindMap);
+  }
+  
+  async getMindMapById(id: number): Promise<MindMap | undefined> {
+    return this.mindMaps.get(id);
+  }
+  
+  async updateMindMap(id: number, mindMap: MindMap): Promise<number> {
+    return this.mindMaps.update(id, mindMap);
+  }
+  
+  async deleteMindMap(id: number): Promise<void> {
+    return this.mindMaps.delete(id);
+  }
 }
 
 // Export a single instance of the DB
@@ -422,4 +441,25 @@ export const dbService = {
   async deleteFlashcard(id: number): Promise<void> {
     return db.deleteFlashcard(id);
   },
+  
+  // Mind Maps Methods
+  async getMindMaps(): Promise<MindMap[]> {
+    return db.getMindMaps();
+  },
+  
+  async createMindMap(mindMap: Omit<MindMap, 'id'>): Promise<number> {
+    return db.createMindMap(mindMap as MindMap);
+  },
+  
+  async getMindMapById(id: number): Promise<MindMap | undefined> {
+    return db.getMindMapById(id);
+  },
+  
+  async updateMindMap(id: number, mindMap: MindMap): Promise<number> {
+    return db.updateMindMap(id, mindMap);
+  },
+  
+  async deleteMindMap(id: number): Promise<void> {
+    return db.deleteMindMap(id);
+  }
 }; 
