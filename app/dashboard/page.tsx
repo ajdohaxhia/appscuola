@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { BookOpen, ClipboardList, CalendarDays, GraduationCap, Bot } from 'lucide-react';
 
@@ -22,7 +22,7 @@ const moduleRoutes = {
   'ai-chat': '/dashboard/ai', // Assumes this route exists or will exist
 };
 
-export default function DashboardPage() {
+function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const view = searchParams.get('view');
@@ -123,5 +123,13 @@ export default function DashboardPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<div>Loading dashboard...</div>}>
+      <DashboardContent />
+    </Suspense>
   );
 } 

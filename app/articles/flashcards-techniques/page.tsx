@@ -1,11 +1,11 @@
 'use client';
 
-import React from 'react';
+import React, { Suspense } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ChevronLeft, Brain, Clock, BarChart, Tag, Share2 } from 'lucide-react';
 
-export default function FlashcardsArticlePage() {
+function FlashcardsArticleContent() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-12">
       <div className="container mx-auto px-4 max-w-4xl">
@@ -260,5 +260,13 @@ export default function FlashcardsArticlePage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function FlashcardsArticlePage() {
+  return (
+    <Suspense fallback={<div>Loading article...</div>}>
+      <FlashcardsArticleContent />
+    </Suspense>
   );
 } 

@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Calendar, Clock, ChevronRight } from 'lucide-react';
@@ -45,7 +45,7 @@ const articles: Article[] = [
   }
 ];
 
-export default function ArticlesPage() {
+function ArticlesContent() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-12">
       <div className="container mx-auto px-4 max-w-6xl">
@@ -141,5 +141,13 @@ export default function ArticlesPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ArticlesPage() {
+  return (
+    <Suspense fallback={<div>Loading articles...</div>}>
+      <ArticlesContent />
+    </Suspense>
   );
 } 

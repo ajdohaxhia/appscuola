@@ -5,8 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "export": "next export -o out || echo 'Export completed with warnings'",
-    "build:static": "next build && npm run export",
+    "export": "echo 'Export completed as part of next build'",
+    "build:static": "next build",
     "start": "next start",
     "lint": "next lint"
   },

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import Link from 'next/link';
 import Header from '@/app/components/Header';
 import Footer from '@/app/components/Footer';
@@ -10,7 +10,7 @@ import ArVrSection from '@/app/components/ArVrSection';
 import NewsSection from '@/app/components/NewsSection';
 import InstallPWA from '@/app/components/InstallPWA';
 
-export default function Home() {
+function HomeContent() {
   return (
     <main className="min-h-screen bg-gray-50 text-gray-800 dark:bg-primary-dark dark:text-white">
       <Header />
@@ -31,5 +31,13 @@ export default function Home() {
       
       <Footer />
     </main>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <HomeContent />
+    </Suspense>
   );
 } 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, Suspense } from 'react';
 import NProgress from 'nprogress';
 import { usePathname, useSearchParams } from 'next/navigation';
 import 'nprogress/nprogress.css'; // Import the CSS
@@ -8,7 +8,7 @@ import 'nprogress/nprogress.css'; // Import the CSS
 // Customize NProgress appearance if desired
 // NProgress.configure({ showSpinner: false });
 
-const NProgressWrapper = ({ children }: { children: React.ReactNode }) => {
+function NProgressContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
@@ -27,6 +27,14 @@ const NProgressWrapper = ({ children }: { children: React.ReactNode }) => {
   // Example: #nprogress .bar { background: #yourColor !important; }
 
   return <>{children}</>;
+}
+
+const NProgressWrapper = ({ children }: { children: React.ReactNode }) => {
+  return (
+    <Suspense fallback={<>{children}</>}>
+      <NProgressContent>{children}</NProgressContent>
+    </Suspense>
+  );
 };
 
 export default NProgressWrapper; 
