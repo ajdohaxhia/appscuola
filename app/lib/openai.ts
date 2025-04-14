@@ -203,20 +203,22 @@ export class OpenAIService {
           });
 
           if (!response.ok) {
-            const errorData = await response.json();
-            console.error('OpenAI API error:', {
-              status: response.status,
-              error: errorData.error,
-              details: errorData.details
-            });
-            throw new Error(errorData.error || `HTTP error ${response.status}`);
+            let errorMessage = `HTTP error ${response.status}`;
+            try {
+              const errorData = await response.json();
+              errorMessage = errorData.error || errorMessage;
+              console.error('API error response:', errorData);
+            } catch (e) {
+              const text = await response.text();
+              console.error('Raw error response:', text);
+              errorMessage = `HTTP error ${response.status}: ${text}`;
+            }
+            throw new Error(errorMessage);
           }
 
           const data = await response.json();
           
-          // Validate response
           if (!data.choices?.[0]?.message?.content) {
-            console.error('Invalid OpenAI response:', data);
             throw new Error('Invalid response from OpenAI API');
           }
 
@@ -224,12 +226,16 @@ export class OpenAIService {
 
           // Save chat history if requested
           if (options.saveHistory) {
-            await this.saveChatHistory(
-              processedMessages,
-              reply,
-              options.historyId,
-              options.historyTitle
-            );
+            try {
+              await this.saveChatHistory(
+                processedMessages,
+                reply,
+                options.historyId,
+                options.historyTitle
+              );
+            } catch (error) {
+              console.error('Error saving chat history:', error);
+            }
           }
 
           return reply;
@@ -238,12 +244,12 @@ export class OpenAIService {
           console.error(`Attempt ${4 - retries} failed:`, error);
           retries--;
           
-          if (retries > 0) {
-            // Wait before retrying (exponential backoff)
-            const delay = Math.pow(2, 3 - retries) * 1000;
-            console.log(`Retrying in ${delay}ms...`);
-            await new Promise(resolve => setTimeout(resolve, delay));
+          if (retries === 0) {
+            throw lastError;
           }
+          
+          // Wait before retrying (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, Math.pow(2, 3 - retries) * 1000));
         }
       }
 

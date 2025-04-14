@@ -11,7 +11,8 @@ const apiUrl = 'https://api.openai.com/v1/chat/completions';
 export async function POST(request: Request) {
   try {
     // Get request body
-    const { messages, temperature = 0.7, max_tokens = 500, model = 'gpt-3.5-turbo' } = await request.json();
+    const body = await request.json();
+    const { messages, temperature = 0.7, max_tokens = 500, model = 'gpt-3.5-turbo' } = body;
 
     // Validate request
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
@@ -71,6 +72,10 @@ export async function POST(request: Request) {
         });
       } catch (e) {
         console.error('Error parsing OpenAI error response:', e);
+        // If we can't parse the error as JSON, try to get the text
+        const text = await response.text();
+        console.error('Raw error response:', text);
+        errorMessage = `HTTP error ${response.status}: ${text}`;
       }
       
       return NextResponse.json(
