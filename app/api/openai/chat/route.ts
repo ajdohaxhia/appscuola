@@ -5,7 +5,7 @@ if (!process.env.OPENAI_API_KEY) {
   console.error('Missing OPENAI_API_KEY environment variable');
 }
 
-// OpenAI API URL - updated to include version
+// OpenAI API URL - make sure it's correct
 const apiUrl = 'https://api.openai.com/v1/chat/completions';
 
 export async function POST(request: Request) {
@@ -35,8 +35,8 @@ export async function POST(request: Request) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-        'OpenAI-Beta': 'assistants=v1'  // Add API version header
+        'Authorization': `Bearer ${apiKey}`
+        // Removed the OpenAI-Beta header that might be causing issues
       },
       body: JSON.stringify({
         model,

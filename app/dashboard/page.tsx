@@ -26,7 +26,7 @@ const moduleRoutes = {
 function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const view = searchParams.get('view');
+  const view = searchParams?.get('view') || null;
   
   // Handle redirecting based on 'view' query parameter
   useEffect(() => {

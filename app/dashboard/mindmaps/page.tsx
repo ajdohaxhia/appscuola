@@ -1,7 +1,7 @@
 'use client';
 
 import React, { Suspense } from 'react';
-import { MindMapModule } from '@/app/modules/mindmaps/MindMapModule';
+import MindMapModule from '@/app/modules/mindmaps/MindMapModule';
 
 // Content component that will be wrapped in Suspense
 function MindMapsContent() {
