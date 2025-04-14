@@ -21,27 +21,47 @@ const nodeTypes = {};
 interface MindMapEditorProps {
   mindMap: MindMap;
   isEditing: boolean;
-  onChange: (nodes: any[], edges: any[]) => void;
+  onChange: (nodes: string, edges: string) => void;
 }
 
 const MindMapEditor: React.FC<MindMapEditorProps> = ({ mindMap, isEditing, onChange }) => {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
-  const [nodes, setNodes, onNodesChange] = useNodesState(mindMap.nodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(mindMap.edges);
+  
+  // Parse nodes and edges from strings to objects
+  const initialNodes = React.useMemo(() => {
+    try {
+      return mindMap.nodes ? JSON.parse(mindMap.nodes) : [];
+    } catch (e) {
+      console.error('Error parsing nodes:', e);
+      return [];
+    }
+  }, [mindMap.nodes]);
+  
+  const initialEdges = React.useMemo(() => {
+    try {
+      return mindMap.edges ? JSON.parse(mindMap.edges) : [];
+    } catch (e) {
+      console.error('Error parsing edges:', e);
+      return [];
+    }
+  }, [mindMap.edges]);
+  
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [nodeName, setNodeName] = useState('');
   const [showNodeForm, setShowNodeForm] = useState(false);
   const [formPosition, setFormPosition] = useState({ x: 0, y: 0 });
 
-  // Quando il mindMap cambia, aggiorna i nodi e le connessioni
+  // When nodes or edges change, convert to JSON strings and call onChange
   useEffect(() => {
-    setNodes(mindMap.nodes);
-    setEdges(mindMap.edges);
-  }, [mindMap.id, mindMap.nodes, mindMap.edges, setNodes, setEdges]);
-
-  // Quando i nodi o le connessioni cambiano, chiama onChange
-  useEffect(() => {
-    onChange(nodes, edges);
+    try {
+      const nodesString = JSON.stringify(nodes);
+      const edgesString = JSON.stringify(edges);
+      onChange(nodesString, edgesString);
+    } catch (e) {
+      console.error('Error stringifying nodes/edges:', e);
+    }
   }, [nodes, edges, onChange]);
 
   const onConnect = useCallback(

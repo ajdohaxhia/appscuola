@@ -54,8 +54,8 @@ const MindMapModule: React.FC = () => {
     try {
       const newMindMap: Omit<MindMap, 'id'> = {
         title: 'Nuova Mappa Mentale',
-        nodes: [],
-        edges: [],
+        nodes: '[]', // Empty array as JSON string
+        edges: '[]', // Empty array as JSON string
         createdAt: new Date(),
         updatedAt: new Date()
       };
@@ -125,6 +125,17 @@ const MindMapModule: React.FC = () => {
       console.error('Errore nell\'aggiornamento della mappa mentale:', error);
     }
   };
+
+  // Handle node and edge changes
+  const handleMindMapChange = (nodes: string, edges: string) => {
+    if (currentMindMap) {
+      setCurrentMindMap({
+        ...currentMindMap,
+        nodes,
+        edges
+      });
+    }
+  };
   
   return (
     <div className="flex h-full">
@@ -189,11 +200,7 @@ const MindMapModule: React.FC = () => {
               <MindMapEditor 
                 mindMap={currentMindMap}
                 isEditing={isEditing}
-                onChange={(nodes, edges) => setCurrentMindMap({
-                  ...currentMindMap, 
-                  nodes, 
-                  edges
-                })}
+                onChange={handleMindMapChange}
               />
             </div>
           </>
