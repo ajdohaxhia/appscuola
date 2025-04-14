@@ -5,7 +5,7 @@ if (!process.env.OPENAI_API_KEY) {
   console.error('Missing OPENAI_API_KEY environment variable');
 }
 
-// OpenAI API URL - make sure it's correct
+// OpenAI API URL
 const apiUrl = 'https://api.openai.com/v1/chat/completions';
 
 export async function POST(request: Request) {
@@ -24,19 +24,28 @@ export async function POST(request: Request) {
     // Check for API key
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
+      console.error('OpenAI API key not configured');
       return NextResponse.json(
         { error: 'OpenAI API key not configured' },
         { status: 500 }
       );
     }
 
+    // Log the request for debugging
+    console.log('Making request to OpenAI API:', {
+      model,
+      messageCount: messages.length,
+      temperature,
+      max_tokens
+    });
+
     // Make request to OpenAI
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-        // Removed the OpenAI-Beta header that might be causing issues
+        'Authorization': `Bearer ${apiKey}`,
+        'OpenAI-Organization': process.env.OPENAI_ORG_ID || '',
       },
       body: JSON.stringify({
         model,
@@ -48,17 +57,56 @@ export async function POST(request: Request) {
 
     // Handle error response from OpenAI
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: { message: `HTTP error ${response.status}` } }));
-      console.error('OpenAI API error:', error);
+      let errorMessage = `HTTP error ${response.status}`;
+      let errorDetails = {};
+      
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error?.message || errorMessage;
+        errorDetails = errorData;
+        console.error('OpenAI API error:', {
+          status: response.status,
+          message: errorMessage,
+          details: errorDetails
+        });
+      } catch (e) {
+        console.error('Error parsing OpenAI error response:', e);
+      }
+      
       return NextResponse.json(
-        { error: error.error?.message || `HTTP error ${response.status}` },
+        { 
+          error: errorMessage,
+          details: errorDetails,
+          status: response.status 
+        },
         { status: response.status }
       );
     }
 
-    // Return successful response
-    const data = await response.json();
-    return NextResponse.json(data);
+    // Parse and validate successful response
+    try {
+      const data = await response.json();
+      
+      // Validate response structure
+      if (!data.choices?.[0]?.message?.content) {
+        console.error('Invalid OpenAI response structure:', data);
+        return NextResponse.json(
+          { error: 'Invalid response from OpenAI API' },
+          { status: 500 }
+        );
+      }
+
+      // Log successful response
+      console.log('OpenAI API response received successfully');
+
+      return NextResponse.json(data);
+    } catch (e) {
+      console.error('Error parsing OpenAI response:', e);
+      return NextResponse.json(
+        { error: 'Error parsing OpenAI response' },
+        { status: 500 }
+      );
+    }
   } catch (error) {
     console.error('Error in OpenAI API route:', error);
     return NextResponse.json(

@@ -123,101 +123,134 @@ export class OpenAIService {
       saveHistory?: boolean;
       historyId?: number;
       historyTitle?: string;
-      files?: File[]; // Added support for files
+      files?: File[];
     } = {}
   ): Promise<string> {
-    const {
-      model = 'gpt-3.5-turbo',
-      temperature = 0.7,
-      maxTokens = 500,
-      saveHistory = true,
-      historyId,
-      historyTitle = 'Nuova Conversazione',
-      files = [], // Default to empty array
-    } = options;
-
     try {
-      // If we have files, we need to handle them
-      if (files.length > 0) {
-        // Process the files into appropriate message content
+      // Process files if any
+      let processedMessages = [...messages];
+      if (options.files && options.files.length > 0) {
         const lastMessage = messages[messages.length - 1];
-        
-        // Only process if the last message is from the user
         if (lastMessage.role === 'user') {
-          // Convert simple string content to complex content array if needed
-          if (typeof lastMessage.content === 'string') {
-            const textContent: MessageContent = {
+          const contentArray: MessageContent[] = [];
+          
+          // Add text content if present
+          if (typeof lastMessage.content === 'string' && lastMessage.content.trim()) {
+            contentArray.push({
               type: 'text',
               text: lastMessage.content
-            };
-            
-            const contentArray: MessageContent[] = [textContent];
-            
-            // Process each file and add to content array
-            for (const file of files) {
-              // Handle image files
-              if (file.type.startsWith('image/')) {
-                const fileUrl = await this.uploadAndGetImageUrl(file);
-                if (fileUrl) {
-                  contentArray.push({
-                    type: 'image',
-                    image_url: fileUrl
-                  });
-                }
+            });
+          }
+          
+          // Process files
+          for (const file of options.files) {
+            if (file.type.startsWith('image/')) {
+              const imageUrl = await this.uploadAndGetImageUrl(file);
+              if (imageUrl) {
+                contentArray.push({
+                  type: 'image',
+                  image_url: imageUrl
+                });
               }
-              // Handle audio files
-              else if (file.type.startsWith('audio/')) {
-                const fileUrl = await this.uploadAndGetAudioUrl(file);
-                if (fileUrl) {
-                  contentArray.push({
-                    type: 'audio',
-                    audio_url: fileUrl
-                  });
-                }
+            } else if (file.type.startsWith('audio/')) {
+              const audioUrl = await this.uploadAndGetAudioUrl(file);
+              if (audioUrl) {
+                contentArray.push({
+                  type: 'audio',
+                  audio_url: audioUrl
+                });
               }
             }
-            
-            // Replace the string content with the content array
-            lastMessage.content = contentArray;
+          }
+          
+          // Replace last message with processed content
+          processedMessages = [
+            ...messages.slice(0, -1),
+            {
+              ...lastMessage,
+              content: contentArray
+            }
+          ];
+        }
+      }
+
+      // Prepare request body
+      const requestBody = {
+        model: options.model || 'gpt-3.5-turbo',
+        messages: processedMessages,
+        temperature: options.temperature || 0.7,
+        max_tokens: options.maxTokens || 500,
+      };
+
+      // Add retry logic
+      let retries = 3;
+      let lastError: Error | null = null;
+
+      while (retries > 0) {
+        try {
+          console.log('Sending request to OpenAI API:', {
+            model: requestBody.model,
+            messageCount: requestBody.messages.length,
+            retryAttempt: 4 - retries
+          });
+
+          const response = await fetch('/api/openai/chat', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestBody),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            console.error('OpenAI API error:', {
+              status: response.status,
+              error: errorData.error,
+              details: errorData.details
+            });
+            throw new Error(errorData.error || `HTTP error ${response.status}`);
+          }
+
+          const data = await response.json();
+          
+          // Validate response
+          if (!data.choices?.[0]?.message?.content) {
+            console.error('Invalid OpenAI response:', data);
+            throw new Error('Invalid response from OpenAI API');
+          }
+
+          const reply = data.choices[0].message.content;
+
+          // Save chat history if requested
+          if (options.saveHistory) {
+            await this.saveChatHistory(
+              processedMessages,
+              reply,
+              options.historyId,
+              options.historyTitle
+            );
+          }
+
+          return reply;
+        } catch (error) {
+          lastError = error as Error;
+          console.error(`Attempt ${4 - retries} failed:`, error);
+          retries--;
+          
+          if (retries > 0) {
+            // Wait before retrying (exponential backoff)
+            const delay = Math.pow(2, 3 - retries) * 1000;
+            console.log(`Retrying in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
           }
         }
       }
 
-      const requestData = {
-        messages,
-        temperature,
-        max_tokens: maxTokens,
-        model,
-      };
-
-      const response = await fetch('/api/openai/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestData),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        const errorMessage = errorData?.error || `HTTP error ${response.status}`;
-        throw new Error(`OpenAI API Error: ${errorMessage}`);
-      }
-
-      const data: ChatResponse = await response.json();
-      const reply = data.choices[0]?.message.content || '';
-
-      // Salva la conversazione nel database se richiesto
-      if (saveHistory) {
-        await this.saveChatHistory(messages, reply, historyId, historyTitle);
-      }
-
-      return reply;
+      throw lastError || new Error('Failed to get response from OpenAI API');
     } catch (error) {
-      if (error instanceof Error) {
-        throw error;
-      }
-      throw new Error('Unknown error occurred while communicating with OpenAI API');
+      console.error('Error in sendChatMessage:', error);
+      throw error;
     }
   }
 
