@@ -25,7 +25,6 @@ export const metadata: Metadata = {
     telephone: false,
   },
   applicationName: 'AppScuola',
-  mobileWebAppCapable: 'yes',
 };
 
 export const viewport = {
