@@ -5,7 +5,7 @@ if (!process.env.OPENAI_API_KEY) {
   console.error('Missing OPENAI_API_KEY environment variable');
 }
 
-// OpenAI API URL
+// OpenAI API URL - updated to include version
 const apiUrl = 'https://api.openai.com/v1/chat/completions';
 
 export async function POST(request: Request) {
@@ -35,7 +35,8 @@ export async function POST(request: Request) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
+        'Authorization': `Bearer ${apiKey}`,
+        'OpenAI-Beta': 'assistants=v1'  // Add API version header
       },
       body: JSON.stringify({
         model,
@@ -47,7 +48,8 @@ export async function POST(request: Request) {
 
     // Handle error response from OpenAI
     if (!response.ok) {
-      const error = await response.json();
+      const error = await response.json().catch(() => ({ error: { message: `HTTP error ${response.status}` } }));
+      console.error('OpenAI API error:', error);
       return NextResponse.json(
         { error: error.error?.message || `HTTP error ${response.status}` },
         { status: response.status }

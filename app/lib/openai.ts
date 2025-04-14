@@ -21,10 +21,18 @@ interface AIImage {
   model: string;
 }
 
+// Add this to the existing interface or create a new one for enhanced messages with attachments
+export interface MessageContent {
+  type: 'text' | 'image' | 'audio';
+  text?: string;
+  image_url?: string;
+  audio_url?: string;
+}
+
 // Tipo per i messaggi di OpenAI
-interface OpenAIMessage {
+export interface OpenAIMessage {
   role: 'user' | 'assistant' | 'system';
-  content: string;
+  content: string | MessageContent[]; // Can be string or array of content parts
 }
 
 // Tipo per la richiesta di chat
@@ -115,6 +123,7 @@ export class OpenAIService {
       saveHistory?: boolean;
       historyId?: number;
       historyTitle?: string;
+      files?: File[]; // Added support for files
     } = {}
   ): Promise<string> {
     const {
@@ -124,9 +133,56 @@ export class OpenAIService {
       saveHistory = true,
       historyId,
       historyTitle = 'Nuova Conversazione',
+      files = [], // Default to empty array
     } = options;
 
     try {
+      // If we have files, we need to handle them
+      if (files.length > 0) {
+        // Process the files into appropriate message content
+        const lastMessage = messages[messages.length - 1];
+        
+        // Only process if the last message is from the user
+        if (lastMessage.role === 'user') {
+          // Convert simple string content to complex content array if needed
+          if (typeof lastMessage.content === 'string') {
+            const textContent: MessageContent = {
+              type: 'text',
+              text: lastMessage.content
+            };
+            
+            const contentArray: MessageContent[] = [textContent];
+            
+            // Process each file and add to content array
+            for (const file of files) {
+              // Handle image files
+              if (file.type.startsWith('image/')) {
+                const fileUrl = await this.uploadAndGetImageUrl(file);
+                if (fileUrl) {
+                  contentArray.push({
+                    type: 'image',
+                    image_url: fileUrl
+                  });
+                }
+              }
+              // Handle audio files
+              else if (file.type.startsWith('audio/')) {
+                const fileUrl = await this.uploadAndGetAudioUrl(file);
+                if (fileUrl) {
+                  contentArray.push({
+                    type: 'audio',
+                    audio_url: fileUrl
+                  });
+                }
+              }
+            }
+            
+            // Replace the string content with the content array
+            lastMessage.content = contentArray;
+          }
+        }
+      }
+
       const requestData = {
         messages,
         temperature,
@@ -241,61 +297,97 @@ export class OpenAIService {
     }
   }
 
-  // Funzione per salvare la conversazione nel database
+  /**
+   * Save chat history to database
+   */
   private async saveChatHistory(
     messages: OpenAIMessage[],
     reply: string,
     historyId?: number,
-    historyTitle?: string
+    historyTitle: string = 'Nuova Conversazione'
   ): Promise<number> {
-    const now = new Date();
-    const formattedMessages = messages.map((msg) => ({
-      role: msg.role === 'system' ? 'assistant' : msg.role,
-      content: msg.content,
-      timestamp: now,
-    }));
-
-    // Add the assistant's reply
-    formattedMessages.push({
-      role: 'assistant',
-      content: reply,
-      timestamp: now,
-    });
-
-    // If historyId is provided, update existing chat
-    if (historyId) {
-      try {
-        const existingChat = await dbService.getNoteById(historyId) as unknown as AISession;
-        if (existingChat) {
-          const updatedChat = {
-            ...existingChat,
-            messages: formattedMessages,
-            updatedAt: now,
-          };
-          await dbService.updateNote(updatedChat as any);
-          return historyId;
-        }
-      } catch (error) {
-        console.error('Error updating chat history:', error);
-      }
-    }
-
-    // Create new chat history
-    const newChatHistory = {
-      title: historyTitle || messages[0]?.content.slice(0, 50) || 'Nuova Conversazione',
-      content: JSON.stringify(formattedMessages), // Store messages as JSON in content field
-      plainTextContent: messages.map(m => m.content).join(' '), // For search
-      createdAt: now,
-      updatedAt: now,
-    };
-
     try {
-      // Using notes table as a fallback for AI sessions
+      const now = new Date();
+      // Format messages in a way compatible with our database structure
+      const formattedMessages = messages.map((msg) => ({
+        role: msg.role === 'system' ? 'assistant' : msg.role,
+        content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
+        timestamp: now,
+      }));
+
+      // Add the assistant's reply
+      formattedMessages.push({
+        role: 'assistant',
+        content: reply,
+        timestamp: now,
+      });
+      
+      // If historyId is provided, update existing chat
+      if (historyId) {
+        try {
+          const existingChat = await dbService.getNoteById(historyId) as unknown as AISession;
+          if (existingChat) {
+            const updatedChat = {
+              ...existingChat,
+              messages: formattedMessages,
+              updatedAt: now,
+            };
+            await dbService.updateNote(updatedChat as any);
+            return historyId;
+          }
+        } catch (error) {
+          console.error('Error updating chat history:', error);
+        }
+      }
+
+      // Create a new chat history entry as a Note
+      const newChatHistory = {
+        title: this.getMessageTitle(messages[0]) || historyTitle,
+        content: JSON.stringify(formattedMessages), // Store messages as JSON in content field
+        plainTextContent: this.getPlainTextContent(messages), // For search
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      // Using notes table as storage for AI sessions
       return await dbService.addNote(newChatHistory);
     } catch (error) {
       console.error('Error saving chat history:', error);
       return -1;
     }
+  }
+
+  /**
+   * Helper function to get plain text content from messages for search
+   */
+  private getPlainTextContent(messages: OpenAIMessage[]): string {
+    return messages.map(message => {
+      if (typeof message.content === 'string') {
+        return message.content;
+      } else if (Array.isArray(message.content)) {
+        return message.content
+          .filter(item => item.type === 'text' && item.text)
+          .map(item => item.text)
+          .join(' ');
+      }
+      return '';
+    }).join(' ');
+  }
+
+  /**
+   * Helper function to get a title from a message
+   */
+  private getMessageTitle(message: OpenAIMessage): string {
+    if (typeof message.content === 'string') {
+      return message.content.substring(0, 50);
+    } else if (Array.isArray(message.content) && message.content.length > 0) {
+      const textContent = message.content.find(item => item.type === 'text');
+      if (textContent && textContent.text) {
+        return textContent.text.substring(0, 50);
+      }
+      return 'Conversazione con allegati';
+    }
+    return 'Nuova Conversazione';
   }
 
   // Funzione per salvare l'immagine generata nel database
@@ -326,6 +418,52 @@ export class OpenAIService {
       console.error('Error saving image to database:', error);
       return -1;
     }
+  }
+
+  // Add new methods to handle file uploads
+
+  /**
+   * Upload an image file and return a URL that can be used in the OpenAI API
+   */
+  private async uploadAndGetImageUrl(file: File): Promise<string | null> {
+    try {
+      // First, convert the file to a data URL
+      const dataUrl = await this.fileToDataUrl(file);
+      
+      // Then, store it and get a URL that can be referenced
+      return dataUrl; // For now, we'll just use the data URL directly
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Upload an audio file and return a URL that can be used in the OpenAI API
+   */
+  private async uploadAndGetAudioUrl(file: File): Promise<string | null> {
+    try {
+      // First, convert the file to a data URL
+      const dataUrl = await this.fileToDataUrl(file);
+      
+      // Then, store it and get a URL that can be referenced
+      return dataUrl; // For now, we'll just use the data URL directly
+    } catch (error) {
+      console.error('Error uploading audio:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Convert a file to a data URL
+   */
+  private fileToDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
   }
 }
 

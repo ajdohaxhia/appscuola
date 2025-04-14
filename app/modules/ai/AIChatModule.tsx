@@ -1,12 +1,14 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Copy, Send, Settings, X, AlertCircle, Loader2, ChevronDown } from 'lucide-react';
-import { OpenAIService } from '@/app/lib/openai';
+import { Copy, Send, Settings, X, AlertCircle, Loader2, ChevronDown, Paperclip, Mic, Image as ImageIcon, StopCircle } from 'lucide-react';
+import { OpenAIService, MessageContent } from '@/app/lib/openai';
+import Image from 'next/image';
 
 interface Message {
   role: 'user' | 'assistant' | 'system';
-  content: string;
+  content: string | MessageContent[];
+  files?: File[]; // Added to track attached files
 }
 
 export function AIChatModule() {
@@ -16,7 +18,16 @@ export function AIChatModule() {
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isCopied, setIsCopied] = useState(false);
+  
+  // State for file handling
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<number | null>(null);
   
   // State for model selection
   const [availableModels, setAvailableModels] = useState<string[]>([]);
@@ -77,21 +88,48 @@ export function AIChatModule() {
     }
   }, [input]);
   
+  // Cleanup recording resources on unmount
+  useEffect(() => {
+    return () => {
+      if (recordingTimerRef.current) {
+        window.clearInterval(recordingTimerRef.current);
+      }
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+      }
+    };
+  }, []);
+  
   const handleSendMessage = async () => {
-    if (!input.trim() || isLoading || modelsLoading || !selectedModel) return;
+    if ((!input.trim() && selectedFiles.length === 0) || isLoading || modelsLoading || !selectedModel) return;
     
-    const userMessage: Message = { role: 'user', content: input };
+    const userMessage: Message = { 
+      role: 'user', 
+      content: input,
+      files: selectedFiles.length > 0 ? [...selectedFiles] : undefined
+    };
+    
     setMessages(prev => [...prev, userMessage]);
     setInput('');
+    setSelectedFiles([]);
     setError(null);
     setIsLoading(true);
     
     try {
       const newMessages = [...messages, userMessage];
-      const reply = await openAIService.current.sendChatMessage(newMessages, {
-        model: selectedModel, // Pass the selected model
+      // Convert our messages format to OpenAI format
+      const openAIMessages = newMessages.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }));
+      
+      const reply = await openAIService.current.sendChatMessage(openAIMessages, {
+        model: selectedModel,
         saveHistory: true,
-        historyTitle: input.slice(0, 50) // Use first 50 chars of the first message as title
+        historyTitle: typeof newMessages[0].content === 'string' 
+          ? newMessages[0].content.slice(0, 50) 
+          : 'Conversazione con file',
+        files: userMessage.files // Pass attached files
       });
       
       setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
@@ -114,6 +152,111 @@ export function AIChatModule() {
     navigator.clipboard.writeText(text);
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 2000);
+  };
+  
+  // Handle file selection
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const filesArray = Array.from(e.target.files);
+      setSelectedFiles(prev => [...prev, ...filesArray]);
+    }
+  };
+  
+  // Remove a selected file
+  const removeFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+  
+  // Handle voice recording
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+      
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+      
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+        const audioFile = new File([audioBlob], `voice-${Date.now()}.wav`, { type: 'audio/wav' });
+        setSelectedFiles(prev => [...prev, audioFile]);
+        setIsRecording(false);
+        if (recordingTimerRef.current) {
+          window.clearInterval(recordingTimerRef.current);
+          recordingTimerRef.current = null;
+        }
+        setRecordingTime(0);
+        
+        // Stop all tracks on the stream to release the microphone
+        stream.getTracks().forEach(track => track.stop());
+      };
+      
+      mediaRecorder.start();
+      setIsRecording(true);
+      
+      // Start a timer to display recording duration
+      recordingTimerRef.current = window.setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
+      
+    } catch (err) {
+      console.error('Error starting recording:', err);
+      setError('Impossibile accedere al microfono. Verifica le autorizzazioni del browser.');
+    }
+  };
+  
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+  };
+  
+  const formatRecordingTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+  
+  // Render message content (text, images, audio)
+  const renderMessageContent = (content: string | MessageContent[]) => {
+    if (typeof content === 'string') {
+      return <div className="whitespace-pre-wrap">{content}</div>;
+    }
+    
+    return (
+      <div>
+        {content.map((item, i) => {
+          if (item.type === 'text' && item.text) {
+            return <div key={i} className="whitespace-pre-wrap mb-2">{item.text}</div>;
+          } else if (item.type === 'image' && item.image_url) {
+            return (
+              <div key={i} className="my-2">
+                <img 
+                  src={item.image_url} 
+                  alt="Immagine allegata" 
+                  className="max-w-full rounded-lg max-h-80 object-contain"
+                />
+              </div>
+            );
+          } else if (item.type === 'audio' && item.audio_url) {
+            return (
+              <div key={i} className="my-2">
+                <audio controls className="w-full">
+                  <source src={item.audio_url} type="audio/wav" />
+                  Il tuo browser non supporta l'elemento audio.
+                </audio>
+              </div>
+            );
+          }
+          return null;
+        })}
+      </div>
+    );
   };
   
   return (
@@ -163,7 +306,7 @@ export function AIChatModule() {
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
             <p className="text-center max-w-md">
-              Benvenuto! Seleziona un modello AI e poni una domanda.
+              Benvenuto! Seleziona un modello AI e poni una domanda. Puoi anche allegare immagini o registrare messaggi vocali.
             </p>
           </div>
         ) : (
@@ -185,11 +328,13 @@ export function AIChatModule() {
                     className={innerDivClass}
                   >
                     <div className="flex justify-between items-start">
-                      <div className="whitespace-pre-wrap">{message.content}</div>
+                      <div className="w-full">
+                        {renderMessageContent(message.content)}
+                      </div>
                       {message.role === 'assistant' && (
                         <button
-                          onClick={() => copyToClipboard(message.content)}
-                          className="ml-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                          onClick={() => copyToClipboard(typeof message.content === 'string' ? message.content : 'Impossibile copiare contenuto con allegati')}
+                          className="ml-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 flex-shrink-0"
                           title="Copia"
                         >
                           <Copy size={16} />
@@ -225,31 +370,134 @@ export function AIChatModule() {
         )}
       </div>
       
+      {/* Selected files preview */}
+      {selectedFiles.length > 0 && (
+        <div className="p-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+          <div className="flex flex-wrap gap-2">
+            {selectedFiles.map((file, index) => (
+              <div key={index} className="relative rounded-md border border-gray-300 dark:border-gray-600 p-1">
+                {file.type.startsWith('image/') ? (
+                  <div className="relative h-12 w-12">
+                    <Image 
+                      src={URL.createObjectURL(file)} 
+                      alt={file.name}
+                      fill
+                      className="object-cover rounded"
+                    />
+                  </div>
+                ) : file.type.startsWith('audio/') ? (
+                  <div className="h-12 w-12 flex items-center justify-center bg-gray-200 dark:bg-gray-700 rounded">
+                    <Mic className="h-6 w-6 text-gray-600 dark:text-gray-300" />
+                  </div>
+                ) : (
+                  <div className="h-12 w-12 flex items-center justify-center bg-gray-200 dark:bg-gray-700 rounded">
+                    <Paperclip className="h-6 w-6 text-gray-600 dark:text-gray-300" />
+                  </div>
+                )}
+                <button 
+                  onClick={() => removeFile(index)}
+                  className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5"
+                  title="Rimuovi file"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      
+      {/* Voice recording indicator */}
+      {isRecording && (
+        <div className="p-2 border-t border-gray-200 dark:border-gray-700 bg-red-50 dark:bg-red-900/20">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse mr-2"></div>
+              <span className="text-red-700 dark:text-red-300 text-sm">
+                Registrazione in corso... {formatRecordingTime(recordingTime)}
+              </span>
+            </div>
+            <button
+              onClick={stopRecording}
+              className="p-1.5 bg-red-500 hover:bg-red-600 text-white rounded-full"
+              title="Interrompi registrazione"
+            >
+              <StopCircle size={18} />
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {/* Hidden file input */}
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        onChange={handleFileSelect} 
+        className="hidden" 
+        accept="image/*,audio/*" 
+        multiple 
+      />
+      
       {/* Input */}
       <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-        <div className="flex">
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            className="flex-1 p-2 border border-gray-300 dark:border-gray-600 rounded-l-md resize-none overflow-hidden max-h-32 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-gray-100 dark:bg-gray-700"
-            placeholder="Scrivi un messaggio..."
-            rows={1}
-            disabled={modelsLoading || modelsError !== null || !selectedModel}
-          />
-          <button
-            onClick={handleSendMessage}
-            disabled={isLoading || modelsLoading || modelsError !== null || !input.trim() || !selectedModel}
-            className={`p-2 rounded-r-md ${
-              isLoading || modelsLoading || modelsError !== null || !input.trim() || !selectedModel
-                ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700 text-white'
-            }`}
-            title={!selectedModel ? "Seleziona prima un modello AI" : "Invia messaggio"}
-          >
-            <Send size={20} />
-          </button>
+        <div className="flex flex-col">
+          <div className="flex mb-2">
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="flex-1 p-2 border border-gray-300 dark:border-gray-600 rounded-l-md resize-none overflow-hidden max-h-32 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-gray-100 dark:bg-gray-700"
+              placeholder="Scrivi un messaggio..."
+              rows={1}
+              disabled={modelsLoading || modelsError !== null || !selectedModel || isRecording}
+            />
+            <div className="flex">
+              <button
+                onClick={handleSendMessage}
+                disabled={isLoading || modelsLoading || modelsError !== null || (!input.trim() && selectedFiles.length === 0) || !selectedModel || isRecording}
+                className={`p-2 ${
+                  isLoading || modelsLoading || modelsError !== null || (!input.trim() && selectedFiles.length === 0) || !selectedModel || isRecording
+                    ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                    : 'bg-blue-600 hover:bg-blue-700 text-white'
+                } rounded-r-md`}
+                title={!selectedModel ? "Seleziona prima un modello AI" : "Invia messaggio"}
+              >
+                <Send size={20} />
+              </button>
+            </div>
+          </div>
+          
+          {/* Attachment buttons */}
+          <div className="flex gap-2">
+            {/* Image attachment button */}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isLoading || isRecording}
+              className={`p-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-gray-600 dark:text-gray-300 ${
+                isLoading || isRecording ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+              title="Allega immagine"
+            >
+              <ImageIcon size={18} />
+            </button>
+            
+            {/* Voice recording button */}
+            <button
+              onClick={isRecording ? stopRecording : startRecording}
+              disabled={isLoading}
+              className={`p-1.5 border rounded-md ${
+                isRecording 
+                  ? 'border-red-500 bg-red-100 dark:bg-red-900/20 text-red-500' 
+                  : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300'
+              } ${
+                isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+              title={isRecording ? "Interrompi registrazione" : "Registra messaggio vocale"}
+            >
+              {isRecording ? <StopCircle size={18} /> : <Mic size={18} />}
+            </button>
+          </div>
         </div>
       </div>
     </div>
