@@ -13,9 +13,16 @@ export const metadata: Metadata = {
   title: 'AppScuola - Studia Smarter, Non Harder',
   description: 'La rivoluzionaria PWA per studenti con funzionalità avanzate di apprendimento',
   manifest: '/manifest.json',
+  themeColor: '#4F46E5',
+  viewport: {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+  },
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'black-translucent',
+    statusBarStyle: 'default',
     title: 'AppScuola',
   },
 };
@@ -43,6 +50,23 @@ export default function RootLayout({
         
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
         <link rel="shortcut icon" href="/favicon.ico" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                  navigator.serviceWorker.register('/sw.js')
+                    .then(registration => {
+                      console.log('ServiceWorker registration successful');
+                    })
+                    .catch(err => {
+                      console.log('ServiceWorker registration failed: ', err);
+                    });
+                });
+              }
+            `,
+          }}
+        />
       </head>
       <body className={inter.className}>
         <Providers>
